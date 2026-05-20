@@ -76,29 +76,12 @@ class SysMon {
     this.isUpdating = true;
 
     const modules = setting.curModules;
-
-    // 使用 allSettled 代替 all，这样即使某个模块失败也不会影响其他模块
     const promises = modules.map(async module => {
-      try {
-        const res = await sysinfoData[module]();
-        return { status: 'fulfilled' as const, value: this.formatRes(module, res) };
-      } catch (err) {
-        // 失败的模块返回默认值
-        return { status: 'rejected' as const, value: this.formatRes(module, null) };
-      }
+      const res = await sysinfoData[module]();
+      return this.formatRes(module, res);
     });
-
     try {
-      const results = await Promise.allSettled(promises);
-
-      const formattedData = results.map((result, index) => {
-        if (result.status === 'fulfilled') {
-          return result.value.value;
-        } else {
-          // 如果 promise 本身失败，返回默认格式
-          return this.formatRes(modules[index], null);
-        }
-      });
+      const res = await Promise.all(promises);
 
       if (this.isAggregateMode()) {
         const aggregateItem = this.statusItems[0];
@@ -106,7 +89,7 @@ class SysMon {
           return;
         }
 
-        const visibleData = formattedData.filter(item => !(item.module === 'remoteLatency' && item.text === '-'));
+        const visibleData = res.filter(item => !(item.module === 'remoteLatency' && item.text === '-'));
         if (visibleData.length === 0) {
           aggregateItem.hide();
           return;
@@ -118,7 +101,7 @@ class SysMon {
         return;
       }
 
-      formattedData.forEach((data, index) => {
+      res.forEach((data, index) => {
         const curStatusItem = this.statusItems[index];
         if (!curStatusItem) {
           return;

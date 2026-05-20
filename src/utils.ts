@@ -49,10 +49,13 @@ export function padNumber(num: number | string, width: number, decimal = 0): str
 }
 
 export function formatNetworkSpeed(value: number, unit: string): string {
+  const FIGURE_SPACE = '\u2007';
   // 网速：KB 无小数，MB/GB 有小数，最多3位有效数字
   if (unit === 'KB') {
     // KB: 无小数点，最多3位整数
-    return Math.round(value).toString().padStart(3, ' ');
+    const s = Math.round(value).toString();
+    const pad = Math.max(0, 3 - s.length);
+    return FIGURE_SPACE.repeat(pad) + s;
   } else {
     // MB/GB: 有小数点，最多3位有效数字
     let decimals = 2;
@@ -61,25 +64,18 @@ export function formatNetworkSpeed(value: number, unit: string): string {
     } else if (value >= 10) {
       decimals = 1; // 10-99: 1位小数
     }
-    // 0-9: 2位小数
-    return value.toFixed(decimals).padStart(5, ' ');
+    const s = value.toFixed(decimals);
+    const pad = Math.max(0, 5 - s.length);
+    return FIGURE_SPACE.repeat(pad) + s;
   }
 }
 
 export function formatLatency(value: number): string {
+  const FIGURE_SPACE = '\u2007';
   // 延时：无小数点，最多3位整数
-  return Math.round(value).toString().padStart(3, ' ');
-}
-
-export async function withTimeout<T>(
-  promise: Promise<T> | Thenable<T>,
-  timeoutMs: number,
-  defaultValue: T
-): Promise<T> {
-  return Promise.race([
-    Promise.resolve(promise),
-    new Promise<T>(resolve => setTimeout(() => resolve(defaultValue), timeoutMs))
-  ]);
+  const s = Math.round(value).toString();
+  const pad = Math.max(0, 3 - s.length);
+  return FIGURE_SPACE.repeat(pad) + s;
 }
 
 export function formatTimes(data: number) {
@@ -109,5 +105,5 @@ export function formatByDict<T extends { [prop: string]: any }>(raw = '', dict: 
     }
   });
 
-  return res.trim();
+  return res.replace(/^[ \t\r\n]+|[ \t\r\n]+$/g, '');
 }
