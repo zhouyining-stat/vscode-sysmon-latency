@@ -51,6 +51,12 @@
               "Right-aligned in the status bar"
             ]
           },
+          "sysMon.aggregateItem": {
+            "type": "boolean",
+            "scope": "machine-overridable",
+            "default": false,
+            "description": "Use a single aggregated status bar item to display all enabled modules in sysMon.modules order"
+          },
           "sysMon.modules": {
             "type": "array",
             "scope": "machine-overridable",
@@ -60,7 +66,7 @@
               "memoUsage"
             ],
             "minItems": 0,
-            "maxItems": 5,
+            "maxItems": 6,
             "uniqueItems": true,
             "items": {
               "type": "string",
@@ -69,7 +75,8 @@
                 "loadavg",
                 "networkSpeed",
                 "memoUsage",
-                "uptime"
+                "uptime",
+                "remoteLatency"
               ]
             },
             "markdownDescription": "Control the modules to be enabled and the display order (You can drag the item to control the order)"
@@ -116,6 +123,12 @@
             "scope": "machine-overridable",
             "default": "${days}d, ${hours}h, ${minutes}m",
             "markdownDescription": "You can use these variables to custom display format: `${days}` `${hours}` `${minutes}` or visit [doc](https://github.com/isontheline/vscode-sysmon#display-format) to see detail (e.g. how use icon)"
+          },
+          "sysMon.remoteLatency.format": {
+            "type": "string",
+            "scope": "machine-overridable",
+            "default": "$(pulse) ${latency}ms",
+            "markdownDescription": "You can use these variables to custom display format: `${latency}` or visit [doc](https://github.com/isontheline/vscode-sysmon#display-format) to see detail (e.g. how use icon). This module only returns a value in remote workspace mode."
           }
         }
       }
@@ -172,6 +185,14 @@
       {
         "command": "SysMon.DisableUptime",
         "title": "SysMon: Disable Uptime"
+      },
+      {
+        "command": "SysMon.EnableRemoteLatency",
+        "title": "SysMon: Enable Remote Latency"
+      },
+      {
+        "command": "SysMon.DisableRemoteLatency",
+        "title": "SysMon: Disable Remote Latency"
       }
     ],
     "menus": {
@@ -223,6 +244,14 @@
         {
           "command": "SysMon.DisableUptime",
           "when": "sysMon.uptime"
+        },
+        {
+          "command": "SysMon.EnableRemoteLatency",
+          "when": "!sysMon.remoteLatency"
+        },
+        {
+          "command": "SysMon.DisableRemoteLatency",
+          "when": "sysMon.remoteLatency"
         }
       ]
     }
@@ -233,6 +262,7 @@
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
+    "test": "node -e \"require('./src/__tests__/formatRes.test.ts').runTests()\"",
     "pretest": "npm run compile && npm run lint",
     "tsc": "tsc --noEmit",
     "lint": "eslint src --ext .ts,.tsx",

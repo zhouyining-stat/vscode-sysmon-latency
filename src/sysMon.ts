@@ -10,6 +10,16 @@ class SysMon {
   statusItems: StatusBarItem[] = [];
   timer: NodeJS.Timeout | null = null;
   _context: ExtensionContext | null = null;
+  private isUpdating = false;
+
+  private getStatusBarAlignment() {
+    const rawLocation = setting?.cfg?.get(ConfigurationKeys.Location) || 'Left';
+    return String(rawLocation).toLowerCase() === 'right' ? StatusBarAlignment.Right : StatusBarAlignment.Left;
+  }
+
+  private isAggregateMode() {
+    return Boolean(setting?.cfg?.get(ConfigurationKeys.AggregateItem));
+  }
 
   init(context: ExtensionContext) {
     this._context = context;
@@ -21,6 +31,8 @@ class SysMon {
     if (!this._context) {
       return;
     }
+    this.cancelUpdate();
+
     if (this.statusItems.length > 0) {
       this.statusItems.forEach(statusItem => {
         statusItem.dispose();
@@ -30,9 +42,22 @@ class SysMon {
     if (!setting?.cfg?.get(ConfigurationKeys.AllEnabled) || curModules.length === 0) {
       return;
     }
-    const location = (setting?.cfg?.get(ConfigurationKeys.Location) || 'Left') as StatusBarAlignment;
-    const priority: number = setting?.cfg?.get(ConfigurationKeys.Priority) || setting.default.priority;
-    this.statusItems = curModules.map(() => window.createStatusBarItem(StatusBarAlignment[location], priority));
+    const location = this.getStatusBarAlignment();
+    const priority: number =
+      (setting?.cfg?.get(ConfigurationKeys.Priority) as number | undefined) ?? setting.default.priority;
+    if (this.isAggregateMode()) {
+      const item = window.createStatusBarItem('sysMon.aggregate', location, priority);
+      item.text = '-';
+      item.show();
+      this.statusItems = [item];
+    } else {
+      this.statusItems = curModules.map((module, index) => {
+        const item = window.createStatusBarItem(`sysMon.${module}`, location, priority - index);
+        item.text = '-';
+        item.show();
+        return item;
+      });
+    }
     this._context.subscriptions.push(...this.statusItems);
     this.update();
   }
@@ -45,17 +70,55 @@ class SysMon {
   }
 
   private async getSysInfo() {
-    const promises = setting.curModules.map(async module => {
+    if (this.isUpdating) {
+      return;
+    }
+    this.isUpdating = true;
+
+    const modules = setting.curModules;
+    const promises = modules.map(async module => {
       const res = await sysinfoData[module]();
       return this.formatRes(module, res) || '-';
     });
-    const res = await Promise.all(promises);
-    res.forEach((data, index) => {
-      const curStatusItem = this.statusItems[index];
-      curStatusItem.text = data.text;
-      curStatusItem.tooltip = data.tooltip || StatsModuleNameMap[data.module];
-      curStatusItem.show();
-    });
+    try {
+      const res = await Promise.all(promises);
+
+      if (this.isAggregateMode()) {
+        const aggregateItem = this.statusItems[0];
+        if (!aggregateItem) {
+          return;
+        }
+
+        const visibleData = res.filter(item => !(item.module === 'remoteLatency' && item.text === '-'));
+        if (visibleData.length === 0) {
+          aggregateItem.hide();
+          return;
+        }
+
+        aggregateItem.text = visibleData.map(item => item.text).join('  ');
+        aggregateItem.tooltip = visibleData.map(item => item.tooltip || StatsModuleNameMap[item.module]).join(' | ');
+        aggregateItem.show();
+        return;
+      }
+
+      res.forEach((data, index) => {
+        const curStatusItem = this.statusItems[index];
+        if (!curStatusItem) {
+          return;
+        }
+
+        if (data.module === 'remoteLatency' && data.text === '-') {
+          curStatusItem.hide();
+          return;
+        }
+
+        curStatusItem.text = data.text;
+        curStatusItem.tooltip = data.tooltip || StatsModuleNameMap[data.module];
+        curStatusItem.show();
+      });
+    } finally {
+      this.isUpdating = false;
+    }
   }
 
   private formatRes(module: StatsModule, rawRes: unknown) {
@@ -129,6 +192,16 @@ class SysMon {
 
         formatedData.text = formatByDict(setting.cfg?.get(ConfigurationKeys.UptimeFormat), dict);
       }
+    } else if (module === 'remoteLatency') {
+      const res = rawRes as Await<SysinfoData['remoteLatency']>;
+      if (typeof res === 'number') {
+        const dict = {
+          latency: res.toFixed(2)
+        };
+        formatedData.text = formatByDict(setting.cfg?.get(ConfigurationKeys.RemoteLatencyFormat), dict);
+      } else {
+        formatedData.text = '-';
+      }
     }
     return formatedData;
   }
@@ -144,6 +217,7 @@ class SysMon {
     }
     if (this.timer) {
       clearInterval(this.timer);
+      this.timer = null;
     }
   }
 }

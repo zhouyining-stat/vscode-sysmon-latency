@@ -1,7 +1,10 @@
 import * as si from 'systeminformation';
 import * as os from 'os';
+import { env, Uri, workspace } from 'vscode';
 import { getMacOsMemoryUsageInfo } from './memory';
 import { isDarwin, isWin32 } from '../utils';
+
+const REMOTE_LATENCY_BATCHING_LOOP = 10;
 
 export function siInit() {
   if (isWin32) {
@@ -40,7 +43,7 @@ export async function getIP() {
   const defaultInterface = await si.networkInterfaceDefault();
   const res = await si.networkInterfaces();
   if (!Array.isArray(res)) {
-    return res.ip4;
+    return (res as any).ip4;
   }
   for (const item of res) {
     if (item.iface === defaultInterface) {
@@ -65,6 +68,33 @@ export async function getNetworkSpeed() {
 export async function getUpTime() {
   try {
     return os.uptime();
+  } catch (err) {}
+}
+
+export async function getRemoteLatency() {
+  try {
+    if (!env.remoteName) {
+      return null;
+    }
+
+    let uri: Uri;
+    if (workspace.workspaceFolders?.length) {
+      uri = workspace.workspaceFolders[0].uri;
+    } else {
+      uri = Uri.file('/dev/null').with({
+        scheme: 'vscode-remote',
+        authority: env.remoteName
+      });
+    }
+
+    const startTime = performance.now();
+    for (let i = 0; i < REMOTE_LATENCY_BATCHING_LOOP; i++) {
+      try {
+        await workspace.fs.stat(uri);
+      } catch (err) {}
+    }
+    const endTime = performance.now();
+    return (endTime - startTime) / REMOTE_LATENCY_BATCHING_LOOP;
   } catch (err) {}
 }
 
@@ -95,7 +125,8 @@ export const sysinfoData = {
   loadavg: getLoadavg,
   networkSpeed: getNetworkSpeed,
   memoUsage: getMemoryUsage,
-  uptime: getUpTime
+  uptime: getUpTime,
+  remoteLatency: getRemoteLatency
 };
 
 // eslint-disable-next-line @typescript-eslint/naming-convention
@@ -111,5 +142,6 @@ export const StatsModuleNameMap: { [key in StatsModule]: string } = {
   loadavg: 'Loadavg',
   networkSpeed: 'NetworkSpeed',
   memoUsage: 'MemoryUsage',
-  uptime: 'Uptime'
+  uptime: 'Uptime',
+  remoteLatency: 'RemoteLatency'
 };

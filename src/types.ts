@@ -12,18 +12,22 @@ export enum Commands {
   'EnableMemoUsage' = 'SysMon.EnableMemoUsage',
   'DisableMemoUsage' = 'SysMon.DisableMemoUsage',
   'EnableUptime' = 'SysMon.EnableUptime',
-  'DisableUptime' = 'SysMon.DisableUptime'
+  'DisableUptime' = 'SysMon.DisableUptime',
+  'EnableRemoteLatency' = 'SysMon.EnableRemoteLatency',
+  'DisableRemoteLatency' = 'SysMon.DisableRemoteLatency'
 }
 
 export enum ConfigurationKeys {
   RefreshInterval = 'refreshInterval',
   Location = 'location',
   Priority = 'priority',
+  AggregateItem = 'aggregateItem',
   Modules = 'modules',
   AllEnabled = 'enabled',
   CpuLoadFormat = 'cpuLoad.format',
   LoadavgFormat = 'loadavg.format',
   NetworkSpeedFormat = 'networkSpeed.format',
   MemoUsageFormat = 'memoUsage.format',
-  UptimeFormat = 'uptime.format'
+  UptimeFormat = 'uptime.format',
+  RemoteLatencyFormat = 'remoteLatency.format'
 }
