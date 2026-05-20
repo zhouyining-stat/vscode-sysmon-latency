@@ -12,7 +12,7 @@ export function formatBytes(data: number, fixedNumber = 0, customSize = 0) {
   let formatRes: { data: number; unit: 'KB' | 'MB' | 'GB' | 'CUSTOM' };
 
   if (customSize > 0) {
-    formatRes = formatRes = {
+    formatRes = {
       data: data / customSize,
       unit: 'CUSTOM'
     };
@@ -39,6 +39,47 @@ export function formatBytes(data: number, fixedNumber = 0, customSize = 0) {
   }
 
   return { ...formatRes, data: formatRes.data.toFixed(fixedNumber) };
+}
+
+export function padNumber(num: number | string, width: number, decimal = 0): string {
+  const str = typeof num === 'number' ? num.toFixed(decimal) : String(num);
+  const [intPart, decPart] = str.split('.');
+  const paddedInt = intPart.padStart(width, ' ');
+  return decPart !== undefined ? `${paddedInt}.${decPart}` : paddedInt;
+}
+
+export function formatNetworkSpeed(value: number, unit: string): string {
+  // 网速：KB 无小数，MB/GB 有小数，最多3位有效数字
+  if (unit === 'KB') {
+    // KB: 无小数点，最多3位整数
+    return Math.round(value).toString().padStart(3, ' ');
+  } else {
+    // MB/GB: 有小数点，最多3位有效数字
+    let decimals = 2;
+    if (value >= 100) {
+      decimals = 0; // 100+: 无小数
+    } else if (value >= 10) {
+      decimals = 1; // 10-99: 1位小数
+    }
+    // 0-9: 2位小数
+    return value.toFixed(decimals).padStart(5, ' ');
+  }
+}
+
+export function formatLatency(value: number): string {
+  // 延时：无小数点，最多3位整数
+  return Math.round(value).toString().padStart(3, ' ');
+}
+
+export async function withTimeout<T>(
+  promise: Promise<T> | Thenable<T>,
+  timeoutMs: number,
+  defaultValue: T
+): Promise<T> {
+  return Promise.race([
+    Promise.resolve(promise),
+    new Promise<T>(resolve => setTimeout(() => resolve(defaultValue), timeoutMs))
+  ]);
 }
 
 export function formatTimes(data: number) {

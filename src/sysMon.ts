@@ -2,7 +2,7 @@ import { ExtensionContext, StatusBarAlignment, StatusBarItem, window } from 'vsc
 import { ConfigurationKeys } from './types';
 import { sysinfoData, SysinfoData, StatsModule, StatsModuleNameMap, siInit, siRelease } from './sysinfo';
 import { setting } from './setting';
-import { formatBytes, formatTimes, formatByDict, isDarwin } from './utils';
+import { formatBytes, formatTimes, formatByDict, isDarwin, formatNetworkSpeed, formatLatency } from './utils';
 
 type Await<T extends () => unknown> = T extends () => PromiseLike<infer U> ? U : ReturnType<T>;
 
@@ -76,12 +76,29 @@ class SysMon {
     this.isUpdating = true;
 
     const modules = setting.curModules;
+
+    // 使用 allSettled 代替 all，这样即使某个模块失败也不会影响其他模块
     const promises = modules.map(async module => {
-      const res = await sysinfoData[module]();
-      return this.formatRes(module, res) || '-';
+      try {
+        const res = await sysinfoData[module]();
+        return { status: 'fulfilled' as const, value: this.formatRes(module, res) };
+      } catch (err) {
+        // 失败的模块返回默认值
+        return { status: 'rejected' as const, value: this.formatRes(module, null) };
+      }
     });
+
     try {
-      const res = await Promise.all(promises);
+      const results = await Promise.allSettled(promises);
+
+      const formattedData = results.map((result, index) => {
+        if (result.status === 'fulfilled') {
+          return result.value.value;
+        } else {
+          // 如果 promise 本身失败，返回默认格式
+          return this.formatRes(modules[index], null);
+        }
+      });
 
       if (this.isAggregateMode()) {
         const aggregateItem = this.statusItems[0];
@@ -89,7 +106,7 @@ class SysMon {
           return;
         }
 
-        const visibleData = res.filter(item => !(item.module === 'remoteLatency' && item.text === '-'));
+        const visibleData = formattedData.filter(item => !(item.module === 'remoteLatency' && item.text === '-'));
         if (visibleData.length === 0) {
           aggregateItem.hide();
           return;
@@ -101,7 +118,7 @@ class SysMon {
         return;
       }
 
-      res.forEach((data, index) => {
+      formattedData.forEach((data, index) => {
         const curStatusItem = this.statusItems[index];
         if (!curStatusItem) {
           return;
@@ -167,13 +184,13 @@ class SysMon {
     } else if (module === 'networkSpeed') {
       const res = rawRes as Await<SysinfoData['networkSpeed']>;
       if (res) {
-        const up = formatBytes(res.up);
-        const down = formatBytes(res.down);
+        const up = formatBytes(res.up, 2);
+        const down = formatBytes(res.down, 2);
 
         const dict = {
-          up: up.data,
+          up: formatNetworkSpeed(Number(up.data), up.unit),
           'up-unit': up.unit + '/s',
-          down: down.data,
+          down: formatNetworkSpeed(Number(down.data), down.unit),
           'down-unit': down.unit + '/s'
         };
 
@@ -196,7 +213,7 @@ class SysMon {
       const res = rawRes as Await<SysinfoData['remoteLatency']>;
       if (typeof res === 'number') {
         const dict = {
-          latency: res.toFixed(2)
+          latency: formatLatency(res)
         };
         formatedData.text = formatByDict(setting.cfg?.get(ConfigurationKeys.RemoteLatencyFormat), dict);
       } else {

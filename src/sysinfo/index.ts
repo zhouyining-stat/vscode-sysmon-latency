@@ -2,9 +2,10 @@ import * as si from 'systeminformation';
 import * as os from 'os';
 import { env, Uri, workspace } from 'vscode';
 import { getMacOsMemoryUsageInfo } from './memory';
-import { isDarwin, isWin32 } from '../utils';
+import { isDarwin, isWin32, withTimeout } from '../utils';
 
 const REMOTE_LATENCY_BATCHING_LOOP = 10;
+const REMOTE_LATENCY_TIMEOUT = 5000; // 5秒超时
 
 export function siInit() {
   if (isWin32) {
@@ -87,15 +88,31 @@ export async function getRemoteLatency() {
       });
     }
 
-    const startTime = performance.now();
-    for (let i = 0; i < REMOTE_LATENCY_BATCHING_LOOP; i++) {
-      try {
-        await workspace.fs.stat(uri);
-      } catch (err) {}
-    }
-    const endTime = performance.now();
-    return (endTime - startTime) / REMOTE_LATENCY_BATCHING_LOOP;
-  } catch (err) {}
+    const measureLatency = async () => {
+      const startTime = performance.now();
+      let successCount = 0;
+
+      for (let i = 0; i < REMOTE_LATENCY_BATCHING_LOOP; i++) {
+        try {
+          await withTimeout(workspace.fs.stat(uri), 1000, null);
+          successCount++;
+        } catch (err) {
+          // Continue even if one request fails
+        }
+      }
+
+      if (successCount === 0) {
+        return null;
+      }
+
+      const endTime = performance.now();
+      return (endTime - startTime) / REMOTE_LATENCY_BATCHING_LOOP;
+    };
+
+    return await withTimeout(measureLatency(), REMOTE_LATENCY_TIMEOUT, null);
+  } catch (err) {
+    return null;
+  }
 }
 
 export async function getMemoryUsage() {
