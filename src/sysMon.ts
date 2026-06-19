@@ -2,9 +2,20 @@ import { ExtensionContext, StatusBarAlignment, StatusBarItem, window } from 'vsc
 import { ConfigurationKeys } from './types';
 import { sysinfoData, SysinfoData, StatsModule, StatsModuleNameMap, siInit, siRelease } from './sysinfo';
 import { setting } from './setting';
-import { formatBytes, formatTimes, formatByDict, isDarwin, formatNetworkSpeed, formatLatency } from './utils';
+import {
+  formatBytes,
+  formatTimes,
+  formatByDict,
+  isDarwin,
+  formatNetworkSpeed,
+  formatLatency,
+  padNumber,
+  withTimeout
+} from './utils';
 
 type Await<T extends () => unknown> = T extends () => PromiseLike<infer U> ? U : ReturnType<T>;
+
+const MODULE_TIMEOUT = 8000;
 
 class SysMon {
   statusItems: StatusBarItem[] = [];
@@ -77,8 +88,16 @@ class SysMon {
 
     const modules = setting.curModules;
     const promises = modules.map(async module => {
-      const res = await sysinfoData[module]();
-      return this.formatRes(module, res);
+      try {
+        const res = await withTimeout(sysinfoData[module]() as Promise<unknown>, MODULE_TIMEOUT);
+        return this.formatRes(module, res);
+      } catch (err) {
+        return { module: module as StatsModule, text: '-', tooltip: '' } as {
+          module: StatsModule;
+          text: string;
+          tooltip: string;
+        };
+      }
     });
     try {
       const res = await Promise.all(promises);
@@ -131,7 +150,7 @@ class SysMon {
       const res = rawRes as Await<SysinfoData['cpuLoad']>;
       if (res) {
         const dict = {
-          percent: res.toFixed(0)
+          percent: padNumber(res, 2)
         };
         formatedData.text = formatByDict(setting.cfg?.get(ConfigurationKeys.CpuLoadFormat), dict);
       }

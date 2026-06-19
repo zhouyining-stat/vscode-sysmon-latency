@@ -2,9 +2,10 @@ import * as si from 'systeminformation';
 import * as os from 'os';
 import { env, Uri, workspace } from 'vscode';
 import { getMacOsMemoryUsageInfo } from './memory';
-import { isDarwin, isWin32 } from '../utils';
+import { isDarwin, isWin32, withTimeout } from '../utils';
 
 const REMOTE_LATENCY_BATCHING_LOOP = 10;
+const REMOTE_LATENCY_STAT_TIMEOUT = 3000;
 
 export function siInit() {
   if (isWin32) {
@@ -22,21 +23,21 @@ export async function getCpuSpeed() {
   try {
     const res = await si.cpuCurrentSpeed();
     return res.avg;
-  } catch (err) {}
+  } catch (err) { }
 }
 
 export async function getCpuLoad() {
   try {
     const res = await si.currentLoad();
     return res.currentLoad;
-  } catch (err) {}
+  } catch (err) { }
 }
 
 export async function getLoadavg() {
   try {
     const res = os.loadavg();
     return res;
-  } catch (err) {}
+  } catch (err) { }
 }
 
 export async function getIP() {
@@ -62,13 +63,13 @@ export async function getNetworkSpeed() {
       up: cur.tx_sec,
       down: cur.rx_sec
     };
-  } catch (err) {}
+  } catch (err) { }
 }
 
 export async function getUpTime() {
   try {
     return os.uptime();
-  } catch (err) {}
+  } catch (err) { }
 }
 
 export async function getRemoteLatency() {
@@ -88,14 +89,28 @@ export async function getRemoteLatency() {
     }
 
     const startTime = performance.now();
+    let completedCalls = 0;
+
     for (let i = 0; i < REMOTE_LATENCY_BATCHING_LOOP; i++) {
       try {
-        await workspace.fs.stat(uri);
-      } catch (err) {}
+        await withTimeout(workspace.fs.stat(uri), REMOTE_LATENCY_STAT_TIMEOUT);
+        completedCalls++;
+      } catch (err) {
+        // Silently ignore individual stat failures
+      }
     }
+
     const endTime = performance.now();
-    return (endTime - startTime) / REMOTE_LATENCY_BATCHING_LOOP;
-  } catch (err) {}
+
+    if (completedCalls === 0) {
+      return null;
+    }
+
+    return (endTime - startTime) / completedCalls;
+  } catch (err) {
+    // If latency measurement fails entirely, return null to display "-"
+    return null;
+  }
 }
 
 export async function getMemoryUsage() {
@@ -117,7 +132,7 @@ export async function getMemoryUsage() {
         active: res.active
       };
     }
-  } catch (err) {}
+  } catch (err) { }
 }
 
 export const sysinfoData = {

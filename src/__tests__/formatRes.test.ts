@@ -30,6 +30,19 @@ function testFormatByDict() {
 }
 
 /**
+ * Test: CPU load display should reserve width for one-digit values
+ */
+function testCpuLoadPadding() {
+  const FIGURE_SPACE = '\u2007';
+  const template = '$(pulse) ${percent}%';
+  const singleDigit = formatByDict(template, { percent: FIGURE_SPACE.repeat(2) + '9' });
+  const doubleDigit = formatByDict(template, { percent: FIGURE_SPACE + '10' });
+
+  strictEqual(singleDigit, '$(pulse) ' + FIGURE_SPACE.repeat(2) + '9%');
+  strictEqual(doubleDigit, '$(pulse) ' + FIGURE_SPACE + '10%');
+}
+
+/**
  * Test: formatByDict should handle network speed format
  */
 function testNetworkSpeedFormat() {
@@ -167,6 +180,7 @@ function testAggregateTooltipJoin() {
 export function runTests() {
   const tests = [
     { name: 'formatByDict basic replacement', fn: testFormatByDict },
+    { name: 'cpu load padding', fn: testCpuLoadPadding },
     { name: 'network speed format', fn: testNetworkSpeedFormat },
     { name: 'memory format with multiple variables', fn: testMemoryFormat },
     { name: 'remote latency format', fn: testRemoteLatencyFormat },

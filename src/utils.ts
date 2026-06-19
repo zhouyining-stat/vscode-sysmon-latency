@@ -42,9 +42,10 @@ export function formatBytes(data: number, fixedNumber = 0, customSize = 0) {
 }
 
 export function padNumber(num: number | string, width: number, decimal = 0): string {
+  const FIGURE_SPACE = '\u2007';
   const str = typeof num === 'number' ? num.toFixed(decimal) : String(num);
   const [intPart, decPart] = str.split('.');
-  const paddedInt = intPart.padStart(width, ' ');
+  const paddedInt = intPart.padStart(width, FIGURE_SPACE);
   return decPart !== undefined ? `${paddedInt}.${decPart}` : paddedInt;
 }
 
@@ -94,6 +95,17 @@ export function formatTimes(data: number) {
   formatRes[2] = curMinutes;
 
   return formatRes;
+}
+
+export function withTimeout<T>(promise: PromiseLike<T>, timeoutMs: number): Promise<T | undefined> {
+  let timer: NodeJS.Timeout;
+  const nativePromise = Promise.resolve(promise);
+  return Promise.race([
+    nativePromise.finally(() => clearTimeout(timer)),
+    new Promise<undefined>(resolve => {
+      timer = setTimeout(() => resolve(undefined), timeoutMs);
+    })
+  ]);
 }
 
 export function formatByDict<T extends { [prop: string]: any }>(raw = '', dict: T): string {
